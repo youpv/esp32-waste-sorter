@@ -228,7 +228,7 @@ void uploadImage() {
     updateLCD(1, "");
   }
 
-  delay(7500);  // Show result for 5 seconds
+  delay(5000);  // Show result for 5 seconds
   updateLCD(0, "Ready to scan!");
   for (int i = 1; i < 4; i++) {
     updateLCD(i, "");
