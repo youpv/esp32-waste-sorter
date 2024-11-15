@@ -16,6 +16,19 @@
 const char* ssid_Router = "IT hertz when IP";
 const char* password_Router = "wachtwoord";
 const char* apiEndpoint = "https://j7mp36xg-3000.euw.devtunnels.ms/api/upload";
+const int pins[] = { 12, 33, 32, 2 };
+const int NUM_PINS = 4;
+const int NUM_LEDS = 7;
+
+const int LED_CONFIGS[7][2] = {
+  { 0, 1 },  // LED 1: A to B
+  { 0, 2 },  // LED 2: A to C
+  { 0, 3 },  // LED 3: A to D
+  { 1, 2 },  // LED 4: B to C
+  { 1, 3 },  // LED 5: B to D
+  { 2, 3 },  // LED 6: C to D
+  { 2, 0 }   // LED 7: C to A
+};
 
 const int buttonPin = 13;  // Button connected to pin 13
 const int I2C_SDA = 14;    // New SDA pin
@@ -45,6 +58,32 @@ void updateLCD(int line, const char* message) {
   lcd.print("                    ");  // Clear the line (20 spaces)
   lcd.setCursor(0, line);
   lcd.print(message);
+}
+
+void updateLeds(int ledIndex, bool state) {
+  // If invalid LED index or state is false, turn all LEDs off
+  if (ledIndex < 0 || ledIndex >= NUM_LEDS || !state) {
+    // Set all pins to input (high impedance) to turn off all LEDs
+    for (int i = 0; i < NUM_PINS; i++) {
+      pinMode(pins[i], INPUT);
+    }
+    return;
+  }
+
+  // First, set all pins to input mode (high impedance)
+  for (int i = 0; i < NUM_PINS; i++) {
+    pinMode(pins[i], INPUT);
+  }
+
+  // Get source and sink pins for the requested LED
+  int sourcePin = pins[LED_CONFIGS[ledIndex][0]];
+  int sinkPin = pins[LED_CONFIGS[ledIndex][1]];
+
+  // Configure pins for the selected LED
+  pinMode(sourcePin, OUTPUT);
+  pinMode(sinkPin, OUTPUT);
+  digitalWrite(sourcePin, HIGH);
+  digitalWrite(sinkPin, LOW);
 }
 
 void camera_init() {
@@ -120,11 +159,16 @@ void setup() {
   }
 
   connectToWiFi();
+
+  for (int i = 0; i < NUM_PINS; i++) {
+    pinMode(pins[i], INPUT);
+  }
 }
 
 void captureImage() {
   updateLCD(0, "Scanning...");
   updateLCD(1, "");
+  updateLeds(-1, false);  // Turn off all LEDs when starting new scan
 
   if (fb) {
     esp_camera_fb_return(fb);
@@ -141,6 +185,18 @@ void captureImage() {
   }
 
   imageReady = true;
+}
+
+// Helper function to map category to LED index
+int getCategoryLedIndex(const char* category) {
+  if (strcmp(category, "plastic") == 0) return 0;
+  if (strcmp(category, "paper") == 0) return 1;
+  if (strcmp(category, "cardboard") == 0) return 2;
+  if (strcmp(category, "bio_waste") == 0) return 3;
+  if (strcmp(category, "mixed_waste") == 0) return 4;
+  if (strcmp(category, "metal") == 0) return 5;
+  if (strcmp(category, "glass") == 0) return 6;
+  return -1;  // Category not found or return_to_store
 }
 
 void uploadImage() {
@@ -161,6 +217,7 @@ void uploadImage() {
   if (!body) {
     updateLCD(0, "Memory error!");
     updateLCD(1, "");
+    updateLeds(-1, false);
     return;
   }
 
@@ -195,7 +252,6 @@ void uploadImage() {
           updateLCD(1, "Unknown");
         }
 
-
         // Display category
         updateLCD(2, "Bin:");
         const char* keys[] = { "plastic", "paper", "cardboard", "bio_waste",
@@ -203,9 +259,17 @@ void uploadImage() {
         const char* displayNames[] = { "Plastic", "Paper", "Cardboard", "Bio waste",
                                        "Mixed waste", "Metal", "Glass", "Return to store" };
         bool categoryFound = false;
+
+        // Turn off all LEDs first
+        updateLeds(-1, false);
+
         for (int i = 0; i < 8; i++) {
           if (doc.containsKey(keys[i]) && doc[keys[i]].as<bool>()) {
             updateLCD(3, displayNames[i]);
+            int ledIndex = getCategoryLedIndex(keys[i]);
+            if (ledIndex >= 0) {  // Only light LED if it's not return_to_store
+              updateLeds(ledIndex, true);
+            }
             categoryFound = true;
             break;
           }
@@ -213,19 +277,23 @@ void uploadImage() {
 
         if (!categoryFound) {
           updateLCD(3, "Check packaging");
+          updateLeds(-1, false);  // Turn off all LEDs
         }
       } else {
         updateLCD(0, "Parse error!");
         updateLCD(1, "");
+        updateLeds(-1, false);
       }
     } else {
       updateLCD(0, "Upload failed!");
       updateLCD(1, "");
+      updateLeds(-1, false);
     }
     http.end();
   } else {
     updateLCD(0, "Connection failed!");
     updateLCD(1, "");
+    updateLeds(-1, false);
   }
 
   delay(5000);  // Show result for 5 seconds
@@ -233,6 +301,7 @@ void uploadImage() {
   for (int i = 1; i < 4; i++) {
     updateLCD(i, "");
   }
+  updateLeds(-1, false);  // Turn off LEDs after showing result
 
   imageReady = false;
 }
@@ -258,6 +327,7 @@ void loop() {
       wifiConnected = false;
       updateLCD(0, "WiFi disconnected");
       updateLCD(1, "");
+      updateLeds(-1, false);  // Turn off LEDs on WiFi disconnect
     }
   }
 
