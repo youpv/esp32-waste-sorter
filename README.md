@@ -43,6 +43,10 @@ Welcome to the ESP32-Wrover-Module with Camera project! This project is designed
 6. **Run the Project**:
    - Power the ESP32 and press the button to capture and upload images.
 
+7. **Working Model Pic**:
+   ![WhatsApp Image 2024-11-15 at 13 32 41_4b8c0801](https://github.com/user-attachments/assets/97130a8c-a12e-4090-b89c-7852f851e4cf)
+
+
 ## 📡 API Endpoints
 
 - **POST /api/upload**: Endpoint for uploading images. The ESP32 sends a multipart/form-data request with the image.
